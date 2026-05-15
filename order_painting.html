@@ -252,9 +252,9 @@
       <div class="pos-thumb {% if pos.image_url %}has-img{% endif %} {% if pos.pdf_url %}has-pdf{% endif %}"
            id="thumb-{{ pos.id }}"
            {% if pos.pdf_url %}
-             onclick="openPdf('{{ pos.pdf_url }}', '{{ pos.designation }}')"
+             onclick="openPdf({{ pos.pdf_url|tojson|forceescape }}, {{ pos.designation|tojson|forceescape }})"
            {% elif pos.image_url %}
-             onclick="openImgViewer('{{ pos.image_url }}', '{{ pos.designation }}')"
+             onclick="openImgViewer({{ pos.image_url|tojson|forceescape }}, {{ pos.designation|tojson|forceescape }})"
            {% endif %}>
         {% if pos.image_url %}
           <img src="{{ pos.image_url }}" alt="{{ pos.designation }}" loading="lazy" draggable="false"/>
@@ -276,7 +276,7 @@
             <div class="pos-progress-fill" id="fill-{{ pos.id }}"
                  style="width:{% if pos.qty > 0 %}{{ [pos.done / pos.qty * 100, 100]|min|int }}{% else %}0{% endif %}%"></div>
           </div>
-          <span class="pos-qty-label" id="label-{{ pos.id }}" onclick="openBigQty('{{ pos.id }}')">
+          <span class="pos-qty-label" id="label-{{ pos.id }}" onclick="openBigQty({{ pos.id|tojson|forceescape }})">
             {{ pos.done|int }}/{{ pos.qty|int }} шт
           </span>
         </div>
@@ -288,7 +288,7 @@
           <button class="btn-mark done-btn" disabled>✓ Готово</button>
         {% else %}
           <button class="btn-mark primary" onclick="markOne({{ pos.id }})">+ 1</button>
-          <button class="btn-n" onclick="openModal({{ pos.id }}, '{{ pos.name }}', {{ pos.qty }}, {{ pos.done }})">N шт</button>
+          <button class="btn-n" onclick="openModal({{ pos.id|tojson|forceescape }}, {{ pos.name|tojson|forceescape }}, {{ pos.qty|tojson|forceescape }}, {{ pos.done|tojson|forceescape }})">N шт</button>
         {% endif %}
       </div>
     </div>
