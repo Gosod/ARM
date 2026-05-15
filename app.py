@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import time
 import threading
 from functools import wraps
@@ -36,6 +37,64 @@ app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 init_db()
 
+ROLE_TITLES = {
+    "admin": "Администратор",
+    "assembly": "Участок механосборки",
+    "welding": "Участок слесарно-сварочный",
+    "painting": "Участок покраски",
+}
+PRODUCTION_ROLES = {"assembly", "welding", "painting"}
+
+
+def normalize_role(role):
+    if role == "worker":
+        return "assembly"
+    return role
+
+
+def role_title(role):
+    return ROLE_TITLES.get(normalize_role(role), role or "")
+
+
+def detect_section(text):
+    low = (text or "").lower()
+    if "покрас" in low or "paint" in low:
+        return "painting"
+    if "слесар" in low or "свар" in low or "сл-св" in low or "weld" in low:
+        return "welding"
+    if "механо" in low or "механ" in low or "мех" in low or "механосбор" in low or "сбор" in low or "assembl" in low:
+        return "assembly"
+    return None
+
+
+def section_from_upload(filename, parsed_order_number=None):
+    # Участок ожидается в скобках имени Excel-файла, например:
+    #   Заказ-123 (покраска).xlsx
+    # Дополнительно смотрим номер заказа из файла как запасной вариант.
+    base = os.path.splitext(os.path.basename(filename or ""))[0]
+    for candidate in re.findall(r"\(([^)]*)\)", base):
+        section = detect_section(candidate)
+        if section:
+            return section
+    return detect_section(base) or detect_section(parsed_order_number)
+
+
+def backfill_order_sections():
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT id, order_number FROM orders WHERE section IS NULL OR section = ''"
+        ).fetchall()
+        for row in rows:
+            section = section_from_upload(row["order_number"])
+            if section:
+                conn.execute("UPDATE orders SET section = ? WHERE id = ?", (section, row["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+backfill_order_sections()
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -60,11 +119,13 @@ def admin_required(f):
 
 
 def current_user():
+    role = normalize_role(session.get("role"))
     return {
-        "id":       session.get("user_id"),
-        "username": session.get("username"),
-        "role":     session.get("role"),
-        "shift":    session.get("shift"),
+        "id":            session.get("user_id"),
+        "username":      session.get("username"),
+        "role":          role,
+        "shift":         session.get("shift"),
+        "section_title": role_title(role),
     }
 
 
@@ -142,8 +203,9 @@ def login():
 
         session["user_id"]  = user["id"]
         session["username"] = user["username"]
-        session["role"]     = user["role"]
-        session["shift"]    = shift if user["role"] == "painting" else None
+        role = normalize_role(user["role"])
+        session["role"]     = role
+        session["shift"]    = shift if role == "painting" else None
 
         return jsonify({"ok": True, "redirect": url_for("dashboard")})
 
@@ -165,14 +227,16 @@ def logout():
 @login_required
 def dashboard():
     user = current_user()
-    raw_orders = get_all_orders()
+    raw_orders = get_all_orders(None if user["role"] == "admin" else user["role"])
     orders = []
     for o in raw_orders:
         orders.append({
-            "id":           o["id"],
-            "order_number": o["order_number"],
-            "created_at":   o["created_at"],
-            "complete":     is_order_complete(o["id"])
+            "id":            o["id"],
+            "order_number":  o["order_number"],
+            "section":       o["section"],
+            "section_title": role_title(o["section"]),
+            "created_at":    o["created_at"],
+            "complete":      is_order_complete(o["id"])
         })
     if user["role"] == "admin":
         return render_template("admin.html", orders=orders, user=user,
@@ -196,9 +260,11 @@ def admin_create_user():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
-    role     = data.get("role", "worker")
+    role     = normalize_role(data.get("role", "assembly"))
     if not username or not password:
         return jsonify({"ok": False, "error": "Заполните все поля"}), 400
+    if role not in {"admin", *PRODUCTION_ROLES}:
+        return jsonify({"ok": False, "error": "Неизвестная роль"}), 400
     ok, err = create_user(username, password, role)
     if not ok:
         return jsonify({"ok": False, "error": err}), 409
@@ -220,6 +286,14 @@ def admin_delete_user(user_id):
 @login_required
 def order_view(order_id):
     user = current_user()
+    conn = get_conn()
+    order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+    conn.close()
+    if not order:
+        return redirect(url_for("dashboard"))
+    if user["role"] != "admin" and order["section"] != user["role"]:
+        return redirect(url_for("dashboard"))
+
     positions = get_positions(order_id)
     if not positions:
         return redirect(url_for("dashboard"))
@@ -239,11 +313,7 @@ def order_view(order_id):
             "pdf_url":     asset_url(p["designation"], "pdfs",   ".pdf"),
         })
 
-    conn = get_conn()
-    order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
-    conn.close()
-
-    # Участок покраски — свой шаблон
+    # Участок покраски — свой шаблон с тем же функционалом, но отдельной визуальной настройкой.
     template = "order_painting.html" if user["role"] == "painting" else "order.html"
     return render_template(template, order=order, positions=pos_list, user=user)
 
@@ -286,12 +356,19 @@ def upload():
         return jsonify({"error": str(e)}), 422
 
     positions = result["positions"]
+    section = section_from_upload(excel_file.filename, result.get("order_number"))
+    if not section:
+        os.remove(filepath)
+        return jsonify({
+            "error": "Не удалось определить участок. Добавьте участок в скобках имени Excel-файла: (механосборка), (слесарно-сварочный) или (покраска)"
+        }), 422
+
     existing = get_order_by_number(order_number)
     if existing:
         os.remove(filepath)
         return jsonify({"error": f"Order {order_number} already loaded", "order_id": existing["id"]}), 409
 
-    order = create_order(order_number)
+    order = create_order(order_number, section)
     insert_positions(order["id"], positions)
     os.remove(filepath)
 
@@ -299,6 +376,8 @@ def upload():
         "ok":              True,
         "order_id":        order["id"],
         "order_number":    order_number,
+        "section":         section,
+        "section_title":   role_title(section),
         "positions_count": len(positions),
         "images_saved":    len(images),
         "pdfs_saved":      len(pdfs),
@@ -320,13 +399,19 @@ def mark(position_id):
     if not pos:
         return jsonify({"error": "Position not found"}), 404
 
+    user = current_user()
+    conn = get_conn()
+    order = conn.execute("SELECT section FROM orders WHERE id = ?", (pos["order_id"],)).fetchone()
+    conn.close()
+    if user["role"] != "admin" and (not order or order["section"] != user["role"]):
+        return jsonify({"error": "Нет доступа к заказу другого участка"}), 403
+
     current_done = get_done_qty(position_id)
     remaining = pos["qty"] - current_done
     if remaining <= 0:
         return jsonify({"ok": True, "total_done": current_done, "qty": pos["qty"], "complete": True})
 
     qty_done = min(qty_done, remaining)
-    user = current_user()
     add_marking(position_id, qty_done, user_id=user["id"] or None, shift=user["shift"])
     total_done = get_done_qty(position_id)
     sync_background()
@@ -356,7 +441,8 @@ def manual_sync():
 @app.route("/api/orders")
 @login_required
 def api_orders():
-    orders = get_all_orders()
+    user = current_user()
+    orders = get_all_orders(None if user["role"] == "admin" else user["role"])
     return jsonify([dict(o) for o in orders])
 
 
@@ -364,7 +450,16 @@ def api_orders():
 @admin_required
 def api_users():
     users = get_all_users()
-    return jsonify([{"id":u["id"],"username":u["username"],"role":u["role"],"created_at":u["created_at"]} for u in users])
+    return jsonify([
+        {
+            "id": u["id"],
+            "username": u["username"],
+            "role": normalize_role(u["role"]),
+            "role_title": role_title(u["role"]),
+            "created_at": u["created_at"],
+        }
+        for u in users
+    ])
 
 
 if __name__ == "__main__":

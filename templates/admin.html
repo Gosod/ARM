@@ -118,7 +118,8 @@
     }
     .user-role-badge { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:3px 10px; border-radius:20px; flex-shrink:0; }
     .role-admin    { background:#fde8e8; color:#c0392b; }
-    .role-worker   { background:#e8f2ff; color:#1d6fc4; }
+    .role-assembly { background:#e8f2ff; color:#1d6fc4; }
+    .role-welding  { background:#fff4d6; color:#9a6a00; }
     .role-painting { background:#e8f9e8; color:#22a06b; }
     .role-guest    { background:#f4f5f7; color:#888; }
     .user-name { flex:1; font-size:13px; font-weight:600; color:#1a1a2e; }
@@ -206,7 +207,7 @@
         <a href="/order/{{ order.id }}" class="pm-card-body">
           <div>
             <div class="pm-card-id">{{ order.order_number }}</div>
-            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}{% if order.section_title %} · {{ order.section_title }}{% endif %}</div>
           </div>
           <span class="pm-badge active">В работе</span>
         </a>
@@ -225,7 +226,7 @@
         <a href="/order/{{ order.id }}" class="pm-card-body">
           <div>
             <div class="pm-card-id">{{ order.order_number }}</div>
-            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}{% if order.section_title %} · {{ order.section_title }}{% endif %}</div>
           </div>
           <span class="pm-badge complete">Готов</span>
         </a>
@@ -265,7 +266,8 @@
         <div class="form-field">
           <label>Роль</label>
           <select id="newRole">
-            <option value="worker">Линейный сотрудник</option>
+            <option value="assembly">Участок механосборки</option>
+            <option value="welding">Участок слесарно-сварочный</option>
             <option value="painting">Участок покраски</option>
             <option value="admin">Администратор</option>
           </select>
@@ -316,7 +318,7 @@
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
-          showFeedback('success', '✓ ' + d.order_number + ' — ' + d.positions_count + ' поз.');
+          showFeedback('success', '✓ ' + d.order_number + ' — ' + (d.section_title || 'участок не указан') + ' — ' + d.positions_count + ' поз.');
           setTimeout(() => location.reload(), 1200);
         } else {
           showFeedback('error', '✗ ' + d.error);
@@ -342,8 +344,8 @@
     });
   });
 
-  const roleLabels = { admin:'Администратор', worker:'Линейный', painting:'Покраска', guest:'Гость' };
-  const roleClass  = { admin:'role-admin', worker:'role-worker', painting:'role-painting', guest:'role-guest' };
+  const roleLabels = { admin:'Администратор', assembly:'Механосборка', welding:'Слесарно-сварочный', painting:'Покраска', guest:'Гость' };
+  const roleClass  = { admin:'role-admin', assembly:'role-assembly', welding:'role-welding', painting:'role-painting', guest:'role-guest' };
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({
@@ -365,7 +367,7 @@
           return;
         }
         list.innerHTML = users.map(u => {
-          const role = escapeHtml(roleLabels[u.role] || u.role);
+          const role = escapeHtml(u.role_title || roleLabels[u.role] || u.role);
           const cls = escapeHtml(roleClass[u.role] || 'role-guest');
           const username = escapeHtml(u.username);
           const date = escapeHtml((u.created_at || '').slice(0, 10));

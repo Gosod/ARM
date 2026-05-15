@@ -31,6 +31,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS orders (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             order_number TEXT NOT NULL UNIQUE,
+            section      TEXT,
             created_at   TEXT DEFAULT (datetime('now', 'localtime'))
         );
 
@@ -53,6 +54,15 @@ def init_db():
             synced      INTEGER DEFAULT 0
         );
     """)
+
+    # Миграции для существующих tracker.db без потери данных.
+    order_cols = [r["name"] for r in conn.execute("PRAGMA table_info(orders)").fetchall()]
+    if "section" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN section TEXT")
+
+    # Старую роль worker считаем участком механосборки, чтобы существующие
+    # сотрудники не потеряли доступ после обновления ролей.
+    conn.execute("UPDATE users SET role = 'assembly' WHERE role = 'worker'")
 
     # Создать дефолтного админа если нет ни одного пользователя
     existing = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
@@ -120,9 +130,15 @@ def verify_user(username, password):
 
 # ── Заказы ───────────────────────────────────────────────────────────────────
 
-def get_all_orders():
+def get_all_orders(section=None):
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+    if section:
+        rows = conn.execute(
+            "SELECT * FROM orders WHERE section = ? ORDER BY created_at DESC",
+            (section,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
     conn.close()
     return rows
 
@@ -134,10 +150,13 @@ def get_order_by_number(order_number):
     return row
 
 
-def create_order(order_number):
+def create_order(order_number, section=None):
     conn = get_conn()
     try:
-        conn.execute("INSERT INTO orders (order_number) VALUES (?)", (order_number,))
+        conn.execute(
+            "INSERT INTO orders (order_number, section) VALUES (?, ?)",
+            (order_number, section)
+        )
         conn.commit()
         row = conn.execute("SELECT * FROM orders WHERE order_number = ?", (order_number,)).fetchone()
         return row

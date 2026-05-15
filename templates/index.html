@@ -62,7 +62,7 @@
     <div class="pm-logo-area">
       <img class="pm-logo" src="/static/logo.png" alt="" onerror="this.style.display='none'"/>
       <div class="pm-divider"></div>
-      <div class="pm-title">Участок покраски</div>
+      <div class="pm-title">{{ user.section_title }}</div>
     </div>
     <div class="topbar-right">
       {% if user.shift %}<span class="shift-badge">Смена {{ user.shift }}</span>{% endif %}
