@@ -42,8 +42,12 @@ ROLE_TITLES = {
     "assembly": "Участок механосборки",
     "welding": "Участок слесарно-сварочный",
     "painting": "Участок покраски",
+    "quality": "Отдел технического контроля",
+    "storekeeper": "Склад",
 }
 PRODUCTION_ROLES = {"assembly", "welding", "painting"}
+SERVICE_ROLES = {"quality", "storekeeper"}
+ALLOWED_ROLES = {"admin", *PRODUCTION_ROLES, *SERVICE_ROLES}
 
 
 def normalize_role(role):
@@ -227,7 +231,13 @@ def logout():
 @login_required
 def dashboard():
     user = current_user()
-    raw_orders = get_all_orders(None if user["role"] == "admin" else user["role"])
+    if user["role"] == "admin":
+        raw_orders = get_all_orders()
+    elif user["role"] in PRODUCTION_ROLES:
+        raw_orders = get_all_orders(user["role"])
+    else:
+        # Для ОТК и склада логика очередей/уведомлений будет добавлена отдельно.
+        raw_orders = []
     orders = []
     for o in raw_orders:
         orders.append({
@@ -241,9 +251,14 @@ def dashboard():
     if user["role"] == "admin":
         return render_template("admin.html", orders=orders, user=user,
                                sheets_ok=sheets.is_configured())
-    else:
-        return render_template("index.html", orders=orders, user=user,
+    if user["role"] == "quality":
+        return render_template("quality.html", orders=orders, user=user,
                                sheets_ok=sheets.is_configured())
+    if user["role"] == "storekeeper":
+        return render_template("storekeeper.html", orders=orders, user=user,
+                               sheets_ok=sheets.is_configured())
+    return render_template("index.html", orders=orders, user=user,
+                           sheets_ok=sheets.is_configured())
 
 
 # ── Admin: users ─────────────────────────────────────────────────────────────
@@ -263,7 +278,7 @@ def admin_create_user():
     role     = normalize_role(data.get("role", "assembly"))
     if not username or not password:
         return jsonify({"ok": False, "error": "Заполните все поля"}), 400
-    if role not in {"admin", *PRODUCTION_ROLES}:
+    if role not in ALLOWED_ROLES:
         return jsonify({"ok": False, "error": "Неизвестная роль"}), 400
     ok, err = create_user(username, password, role)
     if not ok:
@@ -442,7 +457,12 @@ def manual_sync():
 @login_required
 def api_orders():
     user = current_user()
-    orders = get_all_orders(None if user["role"] == "admin" else user["role"])
+    if user["role"] == "admin":
+        orders = get_all_orders()
+    elif user["role"] in PRODUCTION_ROLES:
+        orders = get_all_orders(user["role"])
+    else:
+        orders = []
     return jsonify([dict(o) for o in orders])
 
 

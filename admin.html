@@ -121,6 +121,8 @@
     .role-assembly { background:#e8f2ff; color:#1d6fc4; }
     .role-welding  { background:#fff4d6; color:#9a6a00; }
     .role-painting { background:#e8f9e8; color:#22a06b; }
+    .role-quality  { background:#eee8ff; color:#6b46c1; }
+    .role-storekeeper { background:#e8fbff; color:#087c8f; }
     .role-guest    { background:#f4f5f7; color:#888; }
     .user-name { flex:1; font-size:13px; font-weight:600; color:#1a1a2e; }
     .btn-del-user { background:none; border:none; color:#ccc; font-size:14px; cursor:pointer; padding:4px 8px; transition:color .15s; }
@@ -269,6 +271,8 @@
             <option value="assembly">Участок механосборки</option>
             <option value="welding">Участок слесарно-сварочный</option>
             <option value="painting">Участок покраски</option>
+            <option value="quality">Инженер ОТК</option>
+            <option value="storekeeper">Кладовщик</option>
             <option value="admin">Администратор</option>
           </select>
         </div>
@@ -344,8 +348,8 @@
     });
   });
 
-  const roleLabels = { admin:'Администратор', assembly:'Механосборка', welding:'Слесарно-сварочный', painting:'Покраска', guest:'Гость' };
-  const roleClass  = { admin:'role-admin', assembly:'role-assembly', welding:'role-welding', painting:'role-painting', guest:'role-guest' };
+  const roleLabels = { admin:'Администратор', assembly:'Механосборка', welding:'Слесарно-сварочный', painting:'Покраска', quality:'Инженер ОТК', storekeeper:'Кладовщик', guest:'Гость' };
+  const roleClass  = { admin:'role-admin', assembly:'role-assembly', welding:'role-welding', painting:'role-painting', quality:'role-quality', storekeeper:'role-storekeeper', guest:'role-guest' };
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({
