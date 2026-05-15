@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Заказы</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:#f4f5f7; font-family:'Inter',sans-serif; color:#1a1a2e; min-height:100vh; }
+    .pm-app { max-width:900px; margin:0 auto; }
+    .pm-topbar {
+      background:#fff; padding:0 20px; height:52px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid #e2e4e9; position:sticky; top:0; z-index:100;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+    }
+    .pm-logo-area { display:flex; align-items:center; gap:12px; }
+    .pm-logo { height:32px; display:block; }
+    .pm-divider { width:1px; height:22px; background:#e2e4e9; }
+    .pm-title { font-size:11px; letter-spacing:.15em; color:#888; text-transform:uppercase; font-weight:600; }
+    .topbar-right { display:flex; align-items:center; gap:12px; }
+    .shift-badge { font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:4px 12px; background:#e8f9e8; color:#22a06b; border-radius:20px; }
+    .user-info { font-size:12px; color:#888; }
+    .btn-logout { font-size:11px; color:#666; background:#f4f5f7; border:1px solid #e2e4e9; border-radius:4px; padding:6px 14px; cursor:pointer; font-family:'Inter',sans-serif; }
+    .btn-logout:hover { background:#e2e4e9; }
+
+    .content { padding:20px; }
+
+    .order-tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .order-tab {
+      padding:6px 16px; font-size:12px; font-weight:500; border-radius:20px;
+      cursor:pointer; border:1px solid #e2e4e9; background:#fff; color:#888;
+      transition:all .15s;
+    }
+    .order-tab.active { background:#1d6fc4; color:#fff; border-color:#1d6fc4; }
+    .order-tab .count { display:inline-block; background:rgba(255,255,255,.25); border-radius:10px; font-size:10px; padding:1px 6px; margin-left:4px; }
+    .order-tab:not(.active) .count { background:#f0f0f0; color:#888; }
+
+    .orders-list { display:flex; flex-direction:column; gap:6px; }
+    .pm-card {
+      background:#fff; border:1px solid #e2e4e9; border-radius:6px;
+      display:flex; align-items:stretch; overflow:hidden; transition:all .15s;
+      box-shadow:0 1px 3px rgba(0,0,0,.04); cursor:pointer;
+    }
+    .pm-card:hover { border-color:#1d6fc4; box-shadow:0 2px 8px rgba(29,111,196,.1); }
+    .pm-card.complete { border-color:#22a06b; }
+    .pm-card-accent { width:4px; flex-shrink:0; background:#1d6fc4; }
+    .pm-card.complete .pm-card-accent { background:#22a06b; }
+    .pm-card-body { flex:1; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; text-decoration:none; color:inherit; }
+    .pm-card-id   { font-size:14px; font-weight:600; color:#1a1a2e; margin-bottom:2px; }
+    .pm-card-date { font-size:10px; color:#aaa; }
+    .pm-badge { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:4px 12px; border-radius:20px; }
+    .pm-badge.active   { background:#e8f2ff; color:#1d6fc4; }
+    .pm-badge.complete { background:#e6f9f0; color:#22a06b; }
+    .empty-state { text-align:center; padding:60px 24px; color:#bbb; font-size:12px; }
+  </style>
+</head>
+<body>
+<div class="pm-app">
+  <div class="pm-topbar">
+    <div class="pm-logo-area">
+      <img class="pm-logo" src="/static/logo.png" alt="" onerror="this.style.display='none'"/>
+      <div class="pm-divider"></div>
+      <div class="pm-title">Участок покраски</div>
+    </div>
+    <div class="topbar-right">
+      {% if user.shift %}<span class="shift-badge">Смена {{ user.shift }}</span>{% endif %}
+      <span class="user-info">{{ user.username }}</span>
+      <a href="/logout"><button class="btn-logout">Выйти</button></a>
+    </div>
+  </div>
+
+  <div class="content">
+    {% set active_orders   = orders | selectattr('complete', 'equalto', false) | list %}
+    {% set complete_orders = orders | selectattr('complete', 'equalto', true)  | list %}
+
+    <div class="order-tabs">
+      <div class="order-tab active" onclick="showOrderTab('active', this)">
+        В работе <span class="count">{{ active_orders|length }}</span>
+      </div>
+      <div class="order-tab" onclick="showOrderTab('complete', this)">
+        Готовые <span class="count">{{ complete_orders|length }}</span>
+      </div>
+    </div>
+
+    <div class="orders-list" id="olist-active">
+      {% for order in active_orders %}
+      <a href="/order/{{ order.id }}" class="pm-card">
+        <div class="pm-card-accent"></div>
+        <div class="pm-card-body">
+          <div>
+            <div class="pm-card-id">{{ order.order_number }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+          </div>
+          <span class="pm-badge active">В работе</span>
+        </div>
+      </a>
+      {% else %}
+      <div class="empty-state">Нет активных заказов</div>
+      {% endfor %}
+    </div>
+
+    <div class="orders-list" id="olist-complete" style="display:none">
+      {% for order in complete_orders %}
+      <a href="/order/{{ order.id }}" class="pm-card complete">
+        <div class="pm-card-accent"></div>
+        <div class="pm-card-body">
+          <div>
+            <div class="pm-card-id">{{ order.order_number }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+          </div>
+          <span class="pm-badge complete">Готов</span>
+        </div>
+      </a>
+      {% else %}
+      <div class="empty-state">Нет завершённых заказов</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<script>
+  function showOrderTab(name, el) {
+    document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('olist-active').style.display   = name === 'active'   ? 'flex' : 'none';
+    document.getElementById('olist-complete').style.display = name === 'complete' ? 'flex' : 'none';
+    document.querySelectorAll('#olist-active, #olist-complete').forEach(l => l.style.flexDirection = 'column');
+  }
+</script>
+</body>
+</html>

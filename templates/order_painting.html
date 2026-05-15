@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>{{ order.order_number }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:#f4f5f7; font-family:'Inter',sans-serif; color:#1a1a2e; min-height:100vh; padding-bottom:60px; }
+
+    /* ── Шапка ── */
+    header {
+      background:#fff; border-bottom:1px solid #e2e4e9; box-shadow:0 1px 4px rgba(0,0,0,.06);
+      padding:0 12px; height:48px;
+      display:flex; align-items:center; gap:10px;
+      position:sticky; top:0; z-index:100;
+    }
+    .back-btn { color:#1d6fc4; text-decoration:none; font-size:18px; padding:4px 6px 4px 0; flex-shrink:0; }
+    header h1 { font-size:12px; font-weight:600; color:#1a1a2e; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .hdr-progress-wrap { width:50px; height:3px; background:#e8eaed; border-radius:2px; overflow:hidden; flex-shrink:0; }
+    .hdr-progress-fill { height:100%; background:#1d6fc4; border-radius:2px; transition:width .4s; }
+    .hdr-pct { font-size:10px; color:#aaa; white-space:nowrap; min-width:28px; text-align:right; font-weight:500; flex-shrink:0; }
+
+    /* Глобальный зум */
+    .zoom-controls { display:flex; gap:4px; flex-shrink:0; }
+    .zoom-ctrl-btn {
+      width:30px; height:30px; background:#f4f5f7; border:1px solid #e2e4e9;
+      border-radius:4px; color:#666; font-size:16px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      user-select:none; -webkit-user-select:none; transition:all .15s;
+    }
+    .zoom-ctrl-btn:active { background:#e8f2ff; color:#1d6fc4; border-color:#1d6fc4; }
+
+    /* ── Контейнер с трансформом ── */
+    .scale-wrap {
+      transform-origin: top left;
+      /* задаётся через JS */
+    }
+
+    /* ── Грид ── */
+    .positions {
+      padding:12px;
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+    }
+    @media (max-width:700px) { .positions { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width:360px) { .positions { grid-template-columns: repeat(1, 1fr); } }
+
+    /* ── Карточка ── */
+    .pos-card {
+      background:#fff; border:1px solid #e2e4e9; border-radius:8px;
+      box-shadow:0 1px 3px rgba(0,0,0,.05);
+      overflow:hidden; display:flex; flex-direction:column;
+      transition:border-color .2s;
+    }
+    .pos-card.done { border-color:#22a06b; opacity:.75; }
+    .pos-card.done .pos-name { text-decoration:line-through; color:#aaa; }
+
+    /* ── Картинка — квадрат 1:1 ── */
+    .pos-thumb {
+      position:relative; width:100%; padding-top:100%;
+      background:#f8f9fa; border-bottom:1px solid #f0f0f0;
+      overflow:hidden; flex-shrink:0;
+    }
+    .pos-thumb img {
+      position:absolute; inset:0;
+      width:100%; height:100%; object-fit:cover; display:block;
+      pointer-events:none;
+    }
+    .pos-thumb .no-img {
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      color:#ccc; font-size:11px; text-align:center; line-height:1.6;
+    }
+    .pos-thumb .pdf-badge {
+      position:absolute; top:5px; right:5px;
+      background:#c0392b; color:#fff; font-size:8px; font-weight:600;
+      letter-spacing:.06em; padding:2px 5px; border-radius:1px;
+      pointer-events:none; z-index:3;
+    }
+    /* Картинка без PDF — кликабельна для открытия просмотрщика */
+    .pos-thumb.has-img { cursor:zoom-in; }
+    .pos-thumb.has-img:active { opacity:.85; }
+    /* Картинка с PDF — кликабельна для открытия PDF */
+    .pos-thumb.has-pdf { cursor:pointer; }
+    .pos-thumb.has-pdf:active { opacity:.8; }
+
+    /* ── Инфо ── */
+    .pos-body { flex:1; padding:8px 10px 6px; display:flex; flex-direction:column; gap:4px; min-width:0; }
+    .pos-header { display:flex; align-items:flex-start; gap:5px; }
+    .pos-num { font-size:9px; color:#aaa; background:#f4f5f7; padding:2px 5px; border-radius:3px; white-space:nowrap; flex-shrink:0; margin-top:1px; font-weight:600; }
+    .pos-name { font-size:12px; font-weight:600; line-height:1.3; }
+    .pos-desig { font-size:9px; color:#aaa; word-break:break-all; letter-spacing:.02em; }
+
+    .pos-progress { display:flex; align-items:center; gap:6px; margin-top:2px; }
+    .pos-progress-bar { flex:1; height:2px; background:#e8eaed; border-radius:1px; overflow:hidden; }
+    .pos-progress-fill { height:100%; background:#1d6fc4; border-radius:1px; transition:width .4s; }
+    .pos-card.done .pos-progress-fill { background:#22a06b; }
+    .pos-qty-label {
+      font-size:10px; color:#aaa; white-space:nowrap;
+      cursor:pointer; padding:3px 6px; border-radius:2px; border:1px solid transparent;
+      transition:border-color .15s, color .15s; user-select:none; -webkit-user-select:none;
+    }
+    .pos-qty-label:active { border-color:#1d6fc4; color:#1d6fc4; }
+
+    /* ── Кнопки действий ── */
+    .pos-actions { display:flex; border-top:1px solid #f0f0f0; flex-shrink:0; }
+    .btn-mark {
+      flex:1; background:none; border:none; color:#1a1a2e;
+      font-family:'Inter',sans-serif; font-size:15px; font-weight:600;
+      padding:14px 8px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background .15s, color .15s;
+    }
+    .btn-mark:active { background:#f0f6ff; color:#1d6fc4; }
+    .btn-mark.primary { border-right:1px solid #f0f0f0; }
+    .btn-mark.done-btn { color:#22a06b; font-size:13px; }
+    .btn-n {
+      background:none; border:none; border-left:1px solid #f0f0f0;
+      color:#aaa; font-size:12px; padding:14px 12px; cursor:pointer;
+      font-family:'Inter',sans-serif; letter-spacing:.04em; white-space:nowrap;
+    }
+    .btn-n:active { color:#1d6fc4; background:#f0f6ff; }
+
+    /* ── Просмотрщик картинок ── */
+    .img-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.92);
+      z-index:350; display:none; flex-direction:column;
+    }
+    .img-overlay.open { display:flex; }
+    .img-toolbar {
+      background:rgba(0,0,0,.6); padding:0 16px; height:44px;
+      display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+    }
+    .img-toolbar span { font-size:11px; color:#888; letter-spacing:.06em; }
+    .img-close-btn { background:none; border:none; color:#aaa; font-size:22px; cursor:pointer; padding:4px 8px; }
+    .img-close-btn:active { color:#fff; }
+    .img-viewport {
+      flex:1; display:flex; align-items:center; justify-content:center;
+      overflow:hidden; position:relative;
+      touch-action:none;
+    }
+    .img-viewport img {
+      max-width:100%; max-height:100%;
+      object-fit:contain; display:block;
+      transform-origin:center;
+      user-select:none; -webkit-user-select:none;
+      pointer-events:none;
+      transition:transform .1s;
+    }
+
+    /* ── Оверлей крупного счётчика ── */
+    .big-qty-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.5);
+      z-index:250; display:none; align-items:center; justify-content:center;
+    }
+    .big-qty-overlay.open { display:flex; }
+    .big-qty-box {
+      background:#fff; border:1px solid #e2e4e9; border-top:3px solid #1d6fc4;
+      border-radius:8px; padding:40px 50px; text-align:center; min-width:240px;
+      box-shadow:0 8px 32px rgba(0,0,0,.15);
+    }
+    .big-qty-name  { font-size:11px; color:#aaa; letter-spacing:.14em; text-transform:uppercase; margin-bottom:10px; }
+    .big-qty-num   { font-size:80px; font-weight:600; color:#1d6fc4; line-height:1; margin-bottom:4px; }
+    .big-qty-total { font-size:16px; color:#aaa; letter-spacing:.06em; margin-bottom:28px; }
+    .big-qty-close { background:#f4f5f7; border:1px solid #e2e4e9; border-radius:6px; color:#666; font-size:13px; padding:11px 30px; cursor:pointer; }
+    .big-qty-close:active { background:#e8f2ff; color:#1d6fc4; }
+
+    /* ── Модалка N шт ── */
+    .modal-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.4);
+      z-index:200; display:none; align-items:flex-end; justify-content:center;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal {
+      background:#fff; border:1px solid #e2e4e9; border-top:3px solid #1d6fc4;
+      border-radius:12px 12px 0 0; padding:22px; width:100%; max-width:480px;
+      box-shadow:0 -4px 24px rgba(0,0,0,.1);
+    }
+    .modal-label { font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:.15em; margin-bottom:4px; }
+    .modal-name  { font-size:14px; font-weight:600; margin-bottom:20px; line-height:1.3; color:#1a1a2e; }
+    .qty-row { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+    .qty-btn {
+      width:62px; height:62px; background:#f4f5f7; border:1px solid #e2e4e9;
+      border-radius:8px; color:#1a1a2e; font-size:26px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+      user-select:none; -webkit-user-select:none; transition:all .15s;
+    }
+    .qty-btn:active { background:#e8f2ff; color:#1d6fc4; border-color:#1d6fc4; }
+    .qty-input {
+      flex:1; text-align:center; font-family:'Inter',sans-serif;
+      font-size:38px; font-weight:600; color:#1d6fc4;
+      background:transparent; border:none; outline:none;
+      -moz-appearance:textfield;
+    }
+    .qty-input::-webkit-outer-spin-button,
+    .qty-input::-webkit-inner-spin-button { -webkit-appearance:none; }
+    .modal-btns { display:flex; gap:10px; }
+    .btn-cancel  { flex:1; background:#f4f5f7; border:1px solid #e2e4e9; border-radius:6px; color:#666; font-size:13px; padding:14px; cursor:pointer; font-family:'Inter',sans-serif; }
+    .btn-confirm { flex:2; background:#1d6fc4; border:none; border-radius:6px; color:#fff; font-size:13px; font-weight:600; padding:14px; cursor:pointer; font-family:'Inter',sans-serif; }
+    .btn-confirm:active { background:#2580d8; }
+
+    /* ── PDF ── */
+    .pdf-overlay { position:fixed; inset:0; background:rgba(0,0,0,.95); z-index:300; display:none; flex-direction:column; }
+    .pdf-overlay.open { display:flex; }
+    .pdf-toolbar { background:#fff; border-bottom:1px solid #e2e4e9; padding:0 16px; height:44px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .pdf-toolbar span { font-size:11px; color:#888; }
+    .pdf-close-btn { background:none; border:none; color:#666; font-size:20px; cursor:pointer; padding:4px 8px; }
+    .pdf-frame { flex:1; width:100%; border:none; }
+
+    /* ── Тост ── */
+    #toast {
+      position:fixed; bottom:20px; left:50%;
+      transform:translateX(-50%) translateY(80px);
+      background:#1a1a2e; color:#fff; padding:10px 20px;
+      border-radius:20px; font-size:12px; font-weight:500;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      transition:transform .25s; z-index:500; white-space:nowrap;
+    }
+    #toast.show { transform:translateX(-50%) translateY(0); }
+    #toast.ok  { background:#22a06b; }
+    #toast.err { background:#c0392b; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="back-btn">←</a>
+  <h1>{{ order.order_number }}</h1>
+  <div class="hdr-progress-wrap"><div class="hdr-progress-fill" id="globalBar" style="width:0%"></div></div>
+  <span class="hdr-pct" id="globalPct">0%</span>
+  {% if user.shift %}<span style="font-size:10px;color:#22a06b;background:#e8f9e8;border-radius:20px;padding:3px 10px;font-weight:600;white-space:nowrap;">Смена {{ user.shift }}</span>{% endif %}
+  <!-- Глобальный зум -->
+  <div class="zoom-controls">
+    <button class="zoom-ctrl-btn" id="zoomOut" title="Уменьшить">−</button>
+    <button class="zoom-ctrl-btn" id="zoomIn"  title="Увеличить">+</button>
+  </div>
+</header>
+
+<div class="scale-wrap" id="scaleWrap">
+  <div class="positions">
+    {% for pos in positions %}
+    <div class="pos-card {% if pos.complete %}done{% endif %}"
+         id="card-{{ pos.id }}"
+         data-qty="{{ pos.qty }}"
+         data-done="{{ pos.done }}"
+         data-name="{{ pos.name }}">
+
+      <!-- Картинка -->
+      <div class="pos-thumb {% if pos.image_url %}has-img{% endif %} {% if pos.pdf_url %}has-pdf{% endif %}"
+           id="thumb-{{ pos.id }}"
+           {% if pos.pdf_url %}
+             onclick="openPdf('{{ pos.pdf_url }}', '{{ pos.designation }}')"
+           {% elif pos.image_url %}
+             onclick="openImgViewer('{{ pos.image_url }}', '{{ pos.designation }}')"
+           {% endif %}>
+        {% if pos.image_url %}
+          <img src="{{ pos.image_url }}" alt="{{ pos.designation }}" loading="lazy" draggable="false"/>
+        {% else %}
+          <div class="no-img">нет<br>фото</div>
+        {% endif %}
+        {% if pos.pdf_url %}<div class="pdf-badge">PDF</div>{% endif %}
+      </div>
+
+      <!-- Инфо -->
+      <div class="pos-body">
+        <div class="pos-header">
+          <span class="pos-num">{{ pos.pos_number or '—' }}</span>
+          <span class="pos-name">{{ pos.name }}</span>
+        </div>
+        <div class="pos-desig">{{ pos.designation }}</div>
+        <div class="pos-progress">
+          <div class="pos-progress-bar">
+            <div class="pos-progress-fill" id="fill-{{ pos.id }}"
+                 style="width:{% if pos.qty > 0 %}{{ [pos.done / pos.qty * 100, 100]|min|int }}{% else %}0{% endif %}%"></div>
+          </div>
+          <span class="pos-qty-label" id="label-{{ pos.id }}" onclick="openBigQty('{{ pos.id }}')">
+            {{ pos.done|int }}/{{ pos.qty|int }} шт
+          </span>
+        </div>
+      </div>
+
+      <!-- Кнопки -->
+      <div class="pos-actions">
+        {% if pos.complete %}
+          <button class="btn-mark done-btn" disabled>✓ Готово</button>
+        {% else %}
+          <button class="btn-mark primary" onclick="markOne({{ pos.id }})">+ 1</button>
+          <button class="btn-n" onclick="openModal({{ pos.id }}, '{{ pos.name }}', {{ pos.qty }}, {{ pos.done }})">N шт</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Просмотрщик картинок -->
+<div class="img-overlay" id="imgOverlay">
+  <div class="img-toolbar">
+    <span id="imgTitle"></span>
+    <button class="img-close-btn" onclick="closeImgViewer()">✕</button>
+  </div>
+  <div class="img-viewport" id="imgViewport">
+    <img id="imgViewerImg" src="" alt=""/>
+  </div>
+</div>
+
+<!-- Большой счётчик -->
+<div class="big-qty-overlay" id="bigQtyOverlay" onclick="closeBigQty()">
+  <div class="big-qty-box" onclick="event.stopPropagation()">
+    <div class="big-qty-name" id="bigQtyName"></div>
+    <div class="big-qty-num" id="bigQtyNum">0</div>
+    <div class="big-qty-total" id="bigQtyTotal">из 0 шт</div>
+    <button class="big-qty-close" onclick="closeBigQty()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Модалка N шт -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-label">Отметить готовыми</div>
+    <div class="modal-name" id="modalName"></div>
+    <div class="qty-row">
+      <button class="qty-btn" id="btnMinus">−</button>
+      <input class="qty-input" id="qtyInput" type="number" min="1" value="1"/>
+      <button class="qty-btn" id="btnPlus">+</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-confirm" onclick="confirmModal()">ОТМЕТИТЬ</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF viewer -->
+<div class="pdf-overlay" id="pdfOverlay">
+  <div class="pdf-toolbar">
+    <span id="pdfTitle"></span>
+    <button class="pdf-close-btn" onclick="closePdf()">✕</button>
+  </div>
+  <iframe class="pdf-frame" id="pdfFrame" src=""></iframe>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Глобальный зум ─────────────────────────────────────────────────────────
+const SCALES = [0.6, 0.75, 0.85, 1.0, 1.15, 1.3, 1.5];
+let scaleIdx = 3; // default 1.0
+
+function applyGlobalScale() {
+  const s = SCALES[scaleIdx];
+  const wrap = document.getElementById('scaleWrap');
+  wrap.style.transform = 'scale(' + s + ')';
+  wrap.style.transformOrigin = 'top left';
+  wrap.style.width = (100 / s) + '%';
+  // Высота враппера после трансформа — компенсируем
+  const naturalH = wrap.scrollHeight;
+  document.body.style.minHeight = (naturalH * s + 60) + 'px';
+}
+
+document.getElementById('zoomIn').addEventListener('click', () => {
+  if (scaleIdx < SCALES.length - 1) { scaleIdx++; applyGlobalScale(); }
+});
+document.getElementById('zoomOut').addEventListener('click', () => {
+  if (scaleIdx > 0) { scaleIdx--; applyGlobalScale(); }
+});
+
+// ── Просмотрщик картинок ──────────────────────────────────────────────────
+let viewerScale = 1, viewerPinchDist = null;
+const viewerImg = document.getElementById('imgViewerImg');
+const viewport  = document.getElementById('imgViewport');
+
+function openImgViewer(url, title) {
+  viewerScale = 1;
+  viewerImg.style.transform = 'scale(1)';
+  viewerImg.src = url;
+  document.getElementById('imgTitle').textContent = title;
+  document.getElementById('imgOverlay').classList.add('open');
+}
+function closeImgViewer() {
+  document.getElementById('imgOverlay').classList.remove('open');
+  viewerImg.src = '';
+}
+
+// Pinch-to-zoom в просмотрщике
+viewport.addEventListener('touchmove', e => {
+  if (e.touches.length !== 2) return;
+  e.preventDefault();
+  const dx = e.touches[0].clientX - e.touches[1].clientX;
+  const dy = e.touches[0].clientY - e.touches[1].clientY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (viewerPinchDist === null) { viewerPinchDist = dist; return; }
+  viewerScale *= dist / viewerPinchDist;
+  viewerScale = Math.min(Math.max(viewerScale, 0.5), 6);
+  viewerPinchDist = dist;
+  viewerImg.style.transform = 'scale(' + viewerScale + ')';
+}, { passive:false });
+viewport.addEventListener('touchend', e => { if (e.touches.length < 2) viewerPinchDist = null; });
+
+// Двойной тап — сброс зума
+let lastTap = 0;
+viewport.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 300) { viewerScale = 1; viewerImg.style.transform = 'scale(1)'; }
+  lastTap = now;
+});
+
+// ── Прогресс ───────────────────────────────────────────────────────────────
+function updateProgress() {
+  const cards = document.querySelectorAll('.pos-card');
+  let total = 0, done = 0;
+  cards.forEach(c => {
+    total += parseFloat(c.dataset.qty) || 0;
+    done  += Math.min(parseFloat(c.dataset.done) || 0, parseFloat(c.dataset.qty) || 0);
+  });
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  document.getElementById('globalBar').style.width = pct + '%';
+  document.getElementById('globalPct').textContent = pct + '%';
+}
+
+// ── Крупный счётчик ────────────────────────────────────────────────────────
+function openBigQty(posId) {
+  const c = document.getElementById('card-' + posId);
+  if (!c) return;
+  document.getElementById('bigQtyName').textContent  = c.dataset.name || '';
+  document.getElementById('bigQtyNum').textContent   = Math.round(parseFloat(c.dataset.done) || 0);
+  document.getElementById('bigQtyTotal').textContent = 'из ' + Math.round(parseFloat(c.dataset.qty) || 0) + ' шт';
+  document.getElementById('bigQtyOverlay').classList.add('open');
+}
+function closeBigQty() { document.getElementById('bigQtyOverlay').classList.remove('open'); }
+
+// ── +1 ─────────────────────────────────────────────────────────────────────
+function markOne(posId) { sendMark(posId, 1); }
+
+// ── Модалка N шт ───────────────────────────────────────────────────────────
+let activePos = null, modalMax = 1;
+function openModal(posId, name, planQty, doneQty) {
+  activePos = posId;
+  modalMax = Math.max(1, Math.round(planQty - doneQty));
+  document.getElementById('modalName').textContent = name;
+  const inp = document.getElementById('qtyInput');
+  inp.value = modalMax; inp.max = modalMax;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); activePos = null; }
+function confirmModal() {
+  if (!activePos) return;
+  const v = Math.min(parseInt(document.getElementById('qtyInput').value) || 1, modalMax);
+  sendMark(activePos, v); closeModal();
+}
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+function setupLongPress(btn, delta) {
+  let timer = null, interval = null;
+  const inp = document.getElementById('qtyInput');
+  const step = () => { inp.value = Math.min(Math.max(1, (parseInt(inp.value) || 1) + delta), modalMax); };
+  const start = () => { step(); timer = setTimeout(() => { interval = setInterval(step, 80); }, 400); };
+  const stop  = () => { clearTimeout(timer); clearInterval(interval); timer = null; interval = null; };
+  btn.addEventListener('mousedown',   start);
+  btn.addEventListener('touchstart',  e => { e.preventDefault(); start(); }, { passive:false });
+  btn.addEventListener('mouseup',     stop);
+  btn.addEventListener('mouseleave',  stop);
+  btn.addEventListener('touchend',    stop);
+  btn.addEventListener('touchcancel', stop);
+}
+setupLongPress(document.getElementById('btnMinus'), -1);
+setupLongPress(document.getElementById('btnPlus'),  +1);
+
+// ── Отправка ───────────────────────────────────────────────────────────────
+function sendMark(posId, qty) {
+  fetch('/mark/' + posId, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ qty_done: qty })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) { updateCard(posId, d.total_done, d.qty, d.complete); showToast('+' + qty + ' шт', 'ok'); }
+    else showToast(d.error, 'err');
+  })
+  .catch(() => showToast('Ошибка сети', 'err'));
+}
+function updateCard(posId, done, qty, complete) {
+  const card = document.getElementById('card-' + posId);
+  if (!card) return;
+  card.dataset.done = done;
+  const pct = qty > 0 ? Math.min(Math.round(done / qty * 100), 100) : 0;
+  document.getElementById('fill-'  + posId).style.width = pct + '%';
+  document.getElementById('label-' + posId).textContent = Math.round(done) + '/' + Math.round(qty) + ' шт';
+  if (complete) {
+    card.classList.add('done');
+    card.querySelector('.pos-actions').innerHTML = '<button class="btn-mark done-btn" disabled>✓ Готово</button>';
+  }
+  updateProgress();
+}
+
+// ── PDF ────────────────────────────────────────────────────────────────────
+function openPdf(url, title) {
+  document.getElementById('pdfTitle').textContent = title;
+  document.getElementById('pdfFrame').src = url;
+  document.getElementById('pdfOverlay').classList.add('open');
+}
+function closePdf() {
+  document.getElementById('pdfOverlay').classList.remove('open');
+  document.getElementById('pdfFrame').src = '';
+}
+
+// ── Тост ───────────────────────────────────────────────────────────────────
+function showToast(text, type) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.className = 'show ' + (type || 'ok');
+  setTimeout(() => t.className = '', 2200);
+}
+
+updateProgress();
+</script>
+</body>
+</html>

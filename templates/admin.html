@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Администратор</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:#f4f5f7; font-family:'Inter',sans-serif; color:#1a1a2e; min-height:100vh; padding-bottom:40px; }
+    .pm-app { max-width:960px; margin:0 auto; }
+
+    .pm-topbar {
+      background:#fff; padding:0 20px; height:52px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid #e2e4e9; position:sticky; top:0; z-index:100;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+    }
+    .pm-logo-area { display:flex; align-items:center; gap:12px; }
+    .pm-logo { height:32px; display:block; }
+    .pm-divider { width:1px; height:22px; background:#e2e4e9; }
+    .pm-title { font-size:11px; letter-spacing:.15em; color:#888; text-transform:uppercase; font-weight:600; }
+    .topbar-right { display:flex; align-items:center; gap:14px; }
+    .pm-status { font-size:10px; color:#bbb; letter-spacing:.08em; text-transform:uppercase; }
+    .pm-status.ok { color:#22a06b; }
+    .user-info { font-size:12px; color:#888; }
+    .btn-logout {
+      font-size:11px; color:#666; background:#f4f5f7; border:1px solid #e2e4e9;
+      border-radius:4px; padding:6px 14px; cursor:pointer; font-family:'Inter',sans-serif;
+      transition:all .15s;
+    }
+    .btn-logout:hover { background:#e2e4e9; }
+
+    /* Вкладки */
+    .tabs { display:flex; border-bottom:2px solid #e2e4e9; padding:0 20px; background:#fff; gap:4px; }
+    .tab {
+      padding:12px 16px; font-size:12px; font-weight:500; letter-spacing:.04em; color:#888;
+      cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px;
+      transition:color .15s;
+    }
+    .tab.active { color:#1d6fc4; border-color:#1d6fc4; }
+    .tab:hover { color:#444; }
+
+    .tab-content { display:none; padding:20px; }
+    .tab-content.active { display:block; }
+
+    /* Загрузка */
+    .pm-upload {
+      border:2px dashed #d0d4dc; border-radius:8px; padding:28px;
+      text-align:center; background:#fff; position:relative;
+      overflow:hidden; cursor:pointer; transition:all .2s; margin-bottom:20px;
+    }
+    .pm-upload:hover { border-color:#1d6fc4; background:#f0f6ff; }
+    .pm-upload input { display:none; }
+    .upload-folder { width:36px; height:28px; margin:0 auto 10px; position:relative; }
+    .upload-folder::before { content:''; position:absolute; bottom:0; left:0; right:0; height:20px; background:#1d6fc4; border-radius:2px; }
+    .upload-folder::after  { content:''; position:absolute; top:4px; left:0; width:16px; height:7px; background:#4a9eff; border-radius:2px 2px 0 0; }
+    .pm-upload-label { font-size:13px; font-weight:600; color:#333; margin-bottom:4px; }
+    .pm-upload-sub   { font-size:11px; color:#999; }
+    .pm-feedback { font-size:12px; padding:10px 14px; border-radius:6px; margin-bottom:14px; display:none; }
+    .pm-feedback.loading { color:#1d6fc4; background:#f0f6ff; border:1px solid #c0d8f0; }
+    .pm-feedback.success { color:#22a06b; background:#f0faf5; border:1px solid #b3e6cc; }
+    .pm-feedback.error   { color:#c0392b; background:#fef0ee; border:1px solid #f5c2bc; }
+
+    /* Секция */
+    .section-label {
+      font-size:10px; letter-spacing:.18em; color:#aaa; text-transform:uppercase;
+      font-weight:600; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #e8eaed;
+    }
+
+    /* Табы заказов (активные/готовые) */
+    .order-tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .order-tab {
+      padding:6px 16px; font-size:12px; font-weight:500; border-radius:20px;
+      cursor:pointer; border:1px solid #e2e4e9; background:#fff; color:#888;
+      transition:all .15s;
+    }
+    .order-tab.active { background:#1d6fc4; color:#fff; border-color:#1d6fc4; }
+    .order-tab .count {
+      display:inline-block; background:rgba(255,255,255,.25); border-radius:10px;
+      font-size:10px; padding:1px 6px; margin-left:4px;
+    }
+    .order-tab:not(.active) .count { background:#f0f0f0; color:#888; }
+
+    /* Карточки заказов */
+    .orders-list { display:flex; flex-direction:column; gap:6px; }
+    .pm-card {
+      background:#fff; border:1px solid #e2e4e9; border-radius:6px;
+      display:flex; align-items:stretch; overflow:hidden; transition:all .15s;
+      box-shadow:0 1px 3px rgba(0,0,0,.04);
+    }
+    .pm-card:hover { border-color:#1d6fc4; box-shadow:0 2px 8px rgba(29,111,196,.1); }
+    .pm-card.complete { border-color:#22a06b; }
+    .pm-card-accent { width:4px; flex-shrink:0; background:#1d6fc4; }
+    .pm-card.complete .pm-card-accent { background:#22a06b; }
+    .pm-card-body { flex:1; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; text-decoration:none; color:inherit; }
+    .pm-card-id   { font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:2px; }
+    .pm-card-date { font-size:10px; color:#aaa; }
+    .pm-badge {
+      font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+      padding:4px 10px; border-radius:20px;
+    }
+    .pm-badge.active   { background:#e8f2ff; color:#1d6fc4; }
+    .pm-badge.complete { background:#e6f9f0; color:#22a06b; }
+    .pm-close {
+      color:#ccc; font-size:16px; padding:10px 16px; cursor:pointer;
+      border-left:1px solid #f0f0f0; display:flex; align-items:center;
+      transition:color .15s;
+    }
+    .pm-close:hover { color:#c0392b; }
+
+    /* Пользователи */
+    .users-list { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+    .user-row {
+      background:#fff; border:1px solid #e2e4e9; border-radius:6px;
+      display:flex; align-items:center; padding:10px 16px; gap:12px;
+      box-shadow:0 1px 3px rgba(0,0,0,.04);
+    }
+    .user-role-badge { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:3px 10px; border-radius:20px; flex-shrink:0; }
+    .role-admin    { background:#fde8e8; color:#c0392b; }
+    .role-worker   { background:#e8f2ff; color:#1d6fc4; }
+    .role-painting { background:#e8f9e8; color:#22a06b; }
+    .role-guest    { background:#f4f5f7; color:#888; }
+    .user-name { flex:1; font-size:13px; font-weight:600; color:#1a1a2e; }
+    .btn-del-user { background:none; border:none; color:#ccc; font-size:14px; cursor:pointer; padding:4px 8px; transition:color .15s; }
+    .btn-del-user:hover { color:#c0392b; }
+
+    /* Форма */
+    .add-user-form { background:#fff; border:1px solid #e2e4e9; border-radius:6px; padding:16px; }
+    .form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+    .form-field { flex:1; min-width:130px; }
+    .form-field label { display:block; font-size:11px; color:#888; margin-bottom:5px; font-weight:500; }
+    .form-field input, .form-field select {
+      width:100%; background:#f8f9fa; border:1px solid #e2e4e9; border-radius:4px;
+      color:#1a1a2e; font-family:'Inter',sans-serif; font-size:13px; padding:9px 12px; outline:none;
+      transition:border-color .15s;
+    }
+    .form-field input:focus, .form-field select:focus { border-color:#1d6fc4; background:#fff; }
+    .btn-add {
+      background:#1d6fc4; border:none; border-radius:4px; color:#fff;
+      font-family:'Inter',sans-serif; font-size:12px; font-weight:600;
+      padding:10px 20px; cursor:pointer; white-space:nowrap;
+      transition:background .15s;
+    }
+    .btn-add:hover { background:#2580d8; }
+    .form-feedback { font-size:11px; margin-top:8px; display:none; }
+    .form-feedback.ok  { color:#22a06b; }
+    .form-feedback.err { color:#c0392b; }
+
+    .empty-state { text-align:center; padding:40px; color:#bbb; font-size:12px; }
+  </style>
+</head>
+<body>
+<div class="pm-app">
+
+  <div class="pm-topbar">
+    <div class="pm-logo-area">
+      <img class="pm-logo" src="/static/logo.png" alt="" onerror="this.style.display='none'"/>
+      <div class="pm-divider"></div>
+      <div class="pm-title">Администратор</div>
+    </div>
+    <div class="topbar-right">
+      <span class="pm-status {% if sheets_ok %}ok{% endif %}">
+        {% if sheets_ok %}Sheets ●{% else %}Sheets ○{% endif %}
+      </span>
+      <span class="user-info">{{ user.username }}</span>
+      <a href="/logout"><button class="btn-logout">Выйти</button></a>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('orders', this)">Заказы</div>
+    <div class="tab" onclick="showTab('users', this)">Сотрудники</div>
+    <div class="tab" onclick="showTab('metrics', this)">Метрики</div>
+  </div>
+
+  <!-- Заказы -->
+  <div class="tab-content active" id="tab-orders">
+
+    <div class="pm-upload" id="dropzone">
+      <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.jpg,.jpeg,.png,.pdf"/>
+      <div class="upload-folder"></div>
+      <div class="pm-upload-label">Загрузить заказ</div>
+      <div class="pm-upload-sub">Выберите файлы: .xlsx · .jpg / .png · .pdf</div>
+    </div>
+
+    <div class="pm-feedback" id="feedback"></div>
+
+    {% set active_orders   = orders | selectattr('complete', 'equalto', false) | list %}
+    {% set complete_orders = orders | selectattr('complete', 'equalto', true)  | list %}
+
+    <div class="order-tabs">
+      <div class="order-tab active" id="otab-active"   onclick="showOrderTab('active', this)">
+        В работе <span class="count">{{ active_orders|length }}</span>
+      </div>
+      <div class="order-tab" id="otab-complete" onclick="showOrderTab('complete', this)">
+        Готовые <span class="count">{{ complete_orders|length }}</span>
+      </div>
+    </div>
+
+    <!-- Активные -->
+    <div class="orders-list" id="olist-active">
+      {% for order in active_orders %}
+      <div class="pm-card">
+        <div class="pm-card-accent"></div>
+        <a href="/order/{{ order.id }}" class="pm-card-body">
+          <div>
+            <div class="pm-card-id">{{ order.order_number }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+          </div>
+          <span class="pm-badge active">В работе</span>
+        </a>
+        <div class="pm-close" data-id="{{ order.id }}" data-name="{{ order.order_number }}">×</div>
+      </div>
+      {% else %}
+      <div class="empty-state">Нет активных заказов</div>
+      {% endfor %}
+    </div>
+
+    <!-- Готовые -->
+    <div class="orders-list" id="olist-complete" style="display:none">
+      {% for order in complete_orders %}
+      <div class="pm-card complete">
+        <div class="pm-card-accent"></div>
+        <a href="/order/{{ order.id }}" class="pm-card-body">
+          <div>
+            <div class="pm-card-id">{{ order.order_number }}</div>
+            <div class="pm-card-date">{{ order.created_at[:10] }}</div>
+          </div>
+          <span class="pm-badge complete">Готов</span>
+        </a>
+        <div class="pm-close" data-id="{{ order.id }}" data-name="{{ order.order_number }}">×</div>
+      </div>
+      {% else %}
+      <div class="empty-state">Нет завершённых заказов</div>
+      {% endfor %}
+    </div>
+
+  </div>
+
+  <!-- Метрики -->
+  <div class="tab-content" id="tab-metrics">
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:8px;padding:48px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04);">
+      <div style="font-size:13px;font-weight:600;color:#aaa;letter-spacing:.15em;text-transform:uppercase;">Метрики</div>
+      <div style="font-size:11px;color:#ccc;margin-top:8px;">Раздел в разработке</div>
+    </div>
+  </div>
+
+  <!-- Сотрудники -->
+  <div class="tab-content" id="tab-users">
+    <div class="section-label">Список сотрудников</div>
+    <div class="users-list" id="usersList"></div>
+
+    <div class="section-label">Добавить сотрудника</div>
+    <div class="add-user-form">
+      <div class="form-row">
+        <div class="form-field">
+          <label>Логин</label>
+          <input type="text" id="newUsername" placeholder="ivan"/>
+        </div>
+        <div class="form-field">
+          <label>Пароль</label>
+          <input type="password" id="newPassword" placeholder="••••••"/>
+        </div>
+        <div class="form-field">
+          <label>Роль</label>
+          <select id="newRole">
+            <option value="worker">Линейный сотрудник</option>
+            <option value="painting">Участок покраски</option>
+            <option value="admin">Администратор</option>
+          </select>
+        </div>
+        <button class="btn-add" onclick="addUser()">Добавить</button>
+      </div>
+      <div class="form-feedback" id="formFeedback"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'users') loadUsers();
+  }
+
+  function showOrderTab(name, el) {
+    document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('olist-active').style.display   = name === 'active'   ? 'flex' : 'none';
+    document.getElementById('olist-complete').style.display = name === 'complete' ? 'flex' : 'none';
+    document.querySelectorAll('#olist-active, #olist-complete').forEach(l => l.style.flexDirection = 'column');
+  }
+
+  const dropzone  = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const feedback  = document.getElementById('feedback');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor='#1d6fc4'; });
+  dropzone.addEventListener('dragleave', () => dropzone.style.borderColor='');
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.style.borderColor='';
+    if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files.length) uploadFiles(fileInput.files); });
+
+  function uploadFiles(files) {
+    showFeedback('loading', 'Загружаем ' + [...files].length + ' файл(ов)...');
+    const fd = new FormData();
+    [...files].forEach(f => fd.append('files', f));
+    fetch('/upload', { method:'POST', body:fd })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          showFeedback('success', '✓ ' + d.order_number + ' — ' + d.positions_count + ' поз.');
+          setTimeout(() => location.reload(), 1200);
+        } else {
+          showFeedback('error', '✗ ' + d.error);
+        }
+      })
+      .catch(() => showFeedback('error', '✗ Ошибка сети'));
+  }
+
+  function showFeedback(type, text) {
+    feedback.className = 'pm-feedback ' + type;
+    feedback.textContent = text;
+    feedback.style.display = 'block';
+  }
+
+  document.querySelectorAll('.pm-close').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation(); e.preventDefault();
+      const id = btn.dataset.id, name = btn.dataset.name;
+      if (!confirm('Удалить заказ ' + name + '?')) return;
+      fetch('/delete/' + id, { method:'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.ok) location.reload(); });
+    });
+  });
+
+  const roleLabels = { admin:'Администратор', worker:'Линейный', painting:'Покраска', guest:'Гость' };
+  const roleClass  = { admin:'role-admin', worker:'role-worker', painting:'role-painting', guest:'role-guest' };
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'
+    }[ch]));
+  }
+
+  function loadUsers() {
+    const list = document.getElementById('usersList');
+    list.innerHTML = '<div class="empty-state">Загрузка сотрудников...</div>';
+    fetch('/api/users')
+      .then(r => {
+        if (!r.ok) throw new Error('Не удалось загрузить сотрудников');
+        return r.json();
+      })
+      .then(users => {
+        if (!users.length) {
+          list.innerHTML = '<div class="empty-state">Сотрудники пока не добавлены</div>';
+          return;
+        }
+        list.innerHTML = users.map(u => {
+          const role = escapeHtml(roleLabels[u.role] || u.role);
+          const cls = escapeHtml(roleClass[u.role] || 'role-guest');
+          const username = escapeHtml(u.username);
+          const date = escapeHtml((u.created_at || '').slice(0, 10));
+          return '<div class="user-row">' +
+            '<span class="user-role-badge ' + cls + '">' + role + '</span>' +
+            '<span class="user-name">' + username + '</span>' +
+            '<span style="font-size:10px;color:#bbb;">' + date + '</span>' +
+            '<button class="btn-del-user" type="button" data-user-id="' + u.id + '" data-username="' + username + '">✕</button>' +
+            '</div>';
+        }).join('');
+      })
+      .catch(err => {
+        list.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || 'Ошибка загрузки сотрудников') + '</div>';
+      });
+  }
+
+  document.getElementById('usersList').addEventListener('click', e => {
+    const btn = e.target.closest('.btn-del-user');
+    if (!btn) return;
+    deleteUser(btn.dataset.userId, btn.dataset.username);
+  });
+
+  function addUser() {
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const role     = document.getElementById('newRole').value;
+    const fb = document.getElementById('formFeedback');
+    if (!username || !password) {
+      fb.className = 'form-feedback err'; fb.textContent = 'Заполните все поля'; fb.style.display = 'block'; return;
+    }
+    fetch('/admin/users/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password, role })
+    }).then(r => r.json()).then(d => {
+      if (d.ok) {
+        fb.className = 'form-feedback ok'; fb.textContent = '✓ ' + username + ' добавлен';
+        fb.style.display = 'block';
+        document.getElementById('newUsername').value = '';
+        document.getElementById('newPassword').value = '';
+        loadUsers();
+      } else {
+        fb.className = 'form-feedback err'; fb.textContent = d.error; fb.style.display = 'block';
+      }
+    });
+  }
+
+  function deleteUser(id, name) {
+    if (!confirm('Удалить пользователя ' + name + '?')) return;
+    fetch('/admin/users/delete/' + id, { method:'POST' })
+      .then(r => r.json()).then(d => { if (d.ok) loadUsers(); });
+  }
+</script>
+</body>
+</html>
