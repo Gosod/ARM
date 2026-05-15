@@ -243,17 +243,21 @@
     {% for pos in positions %}
     <div class="pos-card {% if pos.complete %}done{% endif %}"
          id="card-{{ pos.id }}"
+         data-pos-id="{{ pos.id }}"
          data-qty="{{ pos.qty }}"
          data-done="{{ pos.done }}"
-         data-name="{{ pos.name }}">
+         data-name="{{ pos.name }}"
+         data-designation="{{ pos.designation }}"
+         data-image-url="{{ pos.image_url or '' }}"
+         data-pdf-url="{{ pos.pdf_url or '' }}">
 
       <!-- Картинка -->
       <div class="pos-thumb {% if pos.image_url %}has-img{% endif %} {% if pos.pdf_url %}has-pdf{% endif %}"
            id="thumb-{{ pos.id }}"
            {% if pos.pdf_url %}
-             onclick="openPdf({{ pos.pdf_url|tojson|forceescape }}, {{ pos.designation|tojson|forceescape }})"
+             data-action="open-pdf"
            {% elif pos.image_url %}
-             onclick="openImgViewer({{ pos.image_url|tojson|forceescape }}, {{ pos.designation|tojson|forceescape }})"
+             data-action="open-image"
            {% endif %}>
         {% if pos.image_url %}
           <img src="{{ pos.image_url }}" alt="{{ pos.designation }}" loading="lazy" draggable="false"/>
@@ -275,7 +279,7 @@
             <div class="pos-progress-fill" id="fill-{{ pos.id }}"
                  style="width:{% if pos.qty > 0 %}{{ [pos.done / pos.qty * 100, 100]|min|int }}{% else %}0{% endif %}%"></div>
           </div>
-          <span class="pos-qty-label" id="label-{{ pos.id }}" onclick="openBigQty({{ pos.id|tojson|forceescape }})">
+          <span class="pos-qty-label" id="label-{{ pos.id }}" data-action="open-big-qty">
             {{ pos.done|int }}/{{ pos.qty|int }} шт
           </span>
         </div>
@@ -286,8 +290,8 @@
         {% if pos.complete %}
           <button class="btn-mark done-btn" disabled>✓ Готово</button>
         {% else %}
-          <button class="btn-mark primary" onclick="markOne({{ pos.id }})">+ 1</button>
-          <button class="btn-n" onclick="openModal({{ pos.id|tojson|forceescape }}, {{ pos.name|tojson|forceescape }}, {{ pos.qty|tojson|forceescape }}, {{ pos.done|tojson|forceescape }})">N шт</button>
+          <button class="btn-mark primary" type="button" data-action="mark-one">+ 1</button>
+          <button class="btn-n" type="button" data-action="open-modal">N шт</button>
         {% endif %}
       </div>
     </div>
@@ -433,6 +437,34 @@ function closeBigQty() { document.getElementById('bigQtyOverlay').classList.remo
 
 // ── +1 ─────────────────────────────────────────────────────────────────────
 function markOne(posId) { sendMark(posId, 1); }
+
+document.querySelector('.positions').addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+
+  const card = el.closest('.pos-card');
+  if (!card) return;
+
+  const posId = card.dataset.posId;
+  const action = el.dataset.action;
+
+  if (action === 'open-pdf' && card.dataset.pdfUrl) {
+    openPdf(card.dataset.pdfUrl, card.dataset.designation || '');
+  } else if (action === 'open-image' && card.dataset.imageUrl) {
+    openImgViewer(card.dataset.imageUrl, card.dataset.designation || '');
+  } else if (action === 'open-big-qty') {
+    openBigQty(posId);
+  } else if (action === 'mark-one') {
+    markOne(posId);
+  } else if (action === 'open-modal') {
+    openModal(
+      posId,
+      card.dataset.name || '',
+      parseFloat(card.dataset.qty) || 0,
+      parseFloat(card.dataset.done) || 0
+    );
+  }
+});
 
 // ── Модалка N шт ───────────────────────────────────────────────────────────
 let activePos = null, modalMax = 1;
