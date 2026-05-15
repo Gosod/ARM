@@ -4,6 +4,7 @@ import time
 import threading
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
+from jinja2 import ChoiceLoader, FileSystemLoader
 
 from db import (
     is_order_complete,
@@ -16,14 +17,19 @@ from db import (
 from excel_parser import parse_excel
 import sheets
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-IMAGES_FOLDER = os.path.join(os.path.dirname(__file__), "static", "images")
-PDFS_FOLDER   = os.path.join(os.path.dirname(__file__), "static", "pdfs")
+BASE_DIR = os.path.dirname(__file__)
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+IMAGES_FOLDER = os.path.join(BASE_DIR, "static", "images")
+PDFS_FOLDER   = os.path.join(BASE_DIR, "static", "pdfs")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
 os.makedirs(PDFS_FOLDER,   exist_ok=True)
 
 app = Flask(__name__)
+app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(BASE_DIR),
+    FileSystemLoader(os.path.join(BASE_DIR, "templates")),
+])
 app.secret_key = "fm-tracker-secret-2026"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
@@ -105,7 +111,7 @@ def asset_url(designation, folder, ext):
     if not designation:
         return None
     filename = designation.strip() + ext
-    path = os.path.join(os.path.dirname(__file__), "static", folder, filename)
+    path = os.path.join(BASE_DIR, "static", folder, filename)
     if os.path.exists(path):
         return f"/static/{folder}/{filename}"
     return None
@@ -181,8 +187,7 @@ def dashboard():
 @app.route("/admin/users")
 @admin_required
 def admin_users():
-    users = get_all_users()
-    return render_template("admin_users.html", users=users, user=current_user())
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/admin/users/create", methods=["POST"])
